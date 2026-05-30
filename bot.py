@@ -99,18 +99,27 @@ routes = [Route("/", homepage)]
 starlette_app = Starlette(routes=routes)
 
 async def main():
-    tg_app = Application.builder().token(TELEGRAM_TOKEN).build()
+    # Adding a pool_timeout and read_timeout gives the bot more time to connect on slow networks
+    tg_app = (
+        Application.builder()
+        .token(TELEGRAM_TOKEN)
+        .pool_timeout(30.0)
+        .read_timeout(30.0)
+        .build()
+    )
+    
     tg_app.add_handler(CommandHandler("start", start))
     tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     tg_app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
+    # Initialize the engine
+    logger.info("Initializing Telegram Bot...")
     await tg_app.initialize()
     await tg_app.start()
+    
+    logger.info("Bot initialized successfully. Starting polling...")
     asyncio.create_task(tg_app.updater.start_polling())
 
     config = uvicorn.Config(app=starlette_app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)), log_level="info")
     server = uvicorn.Server(config)
     await server.serve()
-
-if __name__ == "__main__":
-    asyncio.run(main())
